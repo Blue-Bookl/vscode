@@ -160,6 +160,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 		// Title Actions - Update context keys
 		ChatContextKeys.isArchivedAgentSession.bindTo(template.contextKeyService).set(session.element.isArchived());
 		ChatContextKeys.isReadAgentSession.bindTo(template.contextKeyService).set(session.element.isRead());
+		ChatContextKeys.agentSessionType.bindTo(template.contextKeyService).set(session.element.providerType);
 		template.titleToolbar.context = session.element;
 
 		// Diff information
@@ -431,9 +432,17 @@ export class AgentSessionsCompressionDelegate implements ITreeCompressionDelegat
 	}
 }
 
+export interface IAgentSessionsSorterOptions {
+	overrideCompare?(sessionA: IAgentSession, sessionB: IAgentSession): number | undefined;
+}
+
 export class AgentSessionsSorter implements ITreeSorter<IAgentSession> {
 
+	constructor(private readonly options?: IAgentSessionsSorterOptions) { }
+
 	compare(sessionA: IAgentSession, sessionB: IAgentSession): number {
+
+		// Input Needed
 		const aNeedsInput = sessionA.status === ChatSessionStatus.NeedsInput;
 		const bNeedsInput = sessionB.status === ChatSessionStatus.NeedsInput;
 
@@ -444,6 +453,7 @@ export class AgentSessionsSorter implements ITreeSorter<IAgentSession> {
 			return 1; // a (other) comes after b (needs input)
 		}
 
+		// In Progress
 		const aInProgress = sessionA.status === ChatSessionStatus.InProgress;
 		const bInProgress = sessionB.status === ChatSessionStatus.InProgress;
 
@@ -454,6 +464,7 @@ export class AgentSessionsSorter implements ITreeSorter<IAgentSession> {
 			return 1; // a (finished) comes after b (in-progress)
 		}
 
+		// Archived
 		const aArchived = sessionA.isArchived();
 		const bArchived = sessionB.isArchived();
 
@@ -464,7 +475,13 @@ export class AgentSessionsSorter implements ITreeSorter<IAgentSession> {
 			return 1; // a (archived) comes after b (non-archived)
 		}
 
-		// Both in-progress or finished: sort by end or start time (most recent first)
+		// Before we compare by time, allow override
+		const override = this.options?.overrideCompare?.(sessionA, sessionB);
+		if (typeof override === 'number') {
+			return override;
+		}
+
+		//Sort by end or start time (most recent first)
 		return (sessionB.timing.endTime || sessionB.timing.startTime) - (sessionA.timing.endTime || sessionA.timing.startTime);
 	}
 }
